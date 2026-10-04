@@ -31,10 +31,9 @@ const BUILTIN = [
   { id: "cleanup", title: "Nightly cleanup", group: "Evening", rule: "daily" },
 
   { id: "laundry", title: "Laundry", group: "House", rule: "dows", days: [0, 3], note: "Sunday and Wednesday" },
-  { id: "groceries", title: "Order groceries", group: "House", rule: "dows", days: [0, 6], note: "Saturday and Sunday" },
+  { id: "groceries", title: "Order groceries", group: "House", rule: "dows", days: [6], note: "Saturday" },
   { id: "mealplan", title: "Meal plan", group: "House", rule: "dows", days: [6], note: "Saturday" },
   { id: "stove", title: "Deep clean stove", group: "House", rule: "dows", days: [6], note: "Saturday" },
-  { id: "counters", title: "Clean counters", group: "House", rule: "daily" },
   { id: "wipe", title: "Wipe counters", group: "House", rule: "daily", slots: 2, note: "Twice a day" },
   { id: "sink", title: "Clean sink", group: "House", rule: "daily", slots: 2, note: "Twice a day" },
   { id: "playroom", title: "Clean playroom", group: "House", rule: "daily", slots: 2, note: "Twice a day" },
