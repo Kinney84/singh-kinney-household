@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Singh Kinney Household</title>
+  <meta name="application-name" content="Singh Kinney Household">
+  <meta name="apple-mobile-web-app-title" content="Singh Kinney Household">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#3d5c4a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css?v=5">
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Singh Kinney Household</h1>
+      <p class="sub" id="when"></p>
+      <div class="modes" role="tablist" aria-label="View">
+        <button type="button" id="mode-list" role="tab" aria-selected="true">Daily list</button>
+        <button type="button" id="mode-cal" role="tab" aria-selected="false">Calendar</button>
+      </div>
+    </header>
+
+    <section class="who" aria-label="Who is checking">
+      <p class="who-label">Checking as</p>
+      <div class="who-picks" id="who-picks"></div>
+      <p class="swatch-label" id="swatch-label"></p>
+      <div class="swatches" id="swatches" role="group" aria-label="Check color"></div>
+    </section>
+
+    <details id="board">
+      <summary>Week's leaderboard</summary>
+      <div id="board-body"></div>
+    </details>
+
+    <section id="daily">
+      <div class="progress-wrap">
+        <span>Chores</span>
+        <span id="count"></span>
+      </div>
+      <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+      <nav class="daynav">
+        <button type="button" id="prev" aria-label="Previous day">Back</button>
+        <button type="button" id="next" aria-label="Next day">Next</button>
+        <button type="button" id="jump" class="today" hidden>Today</button>
+      </nav>
+      <div id="list"></div>
+    </section>
+
+    <section id="calendar" hidden>
+      <nav class="daynav">
+        <button type="button" id="cal-prev" aria-label="Previous month">Back</button>
+        <span id="cal-title" class="cal-title"></span>
+        <button type="button" id="cal-next" aria-label="Next month">Next</button>
+      </nav>
+      <div class="cal-grid" id="cal-grid"></div>
+      <h2 class="day-heading" id="cal-day-heading"></h2>
+      <div id="cal-list"></div>
+      <button type="button" id="back-daily" class="back-daily">Back to the daily list</button>
+    </section>
+
+    <form id="add" class="add">
+      <h2>Add a chore</h2>
+      <label>Name <input id="add-name" name="name" type="text" required maxlength="80" autocomplete="off"></label>
+      <label>Points <input id="add-points" name="points" type="number" min="1" step="1" value="1" required></label>
+      <label>Repeat
+        <select id="add-repeat" name="repeat">
+          <option value="once" selected>One time</option>
+          <option value="daily">Every day</option>
+          <option value="weekdays">Weekdays</option>
+          <option value="weekends">Weekends</option>
+          <option value="dows">Specific days</option>
+          <option value="sat1">1st Saturday</option>
+          <option value="sat13">1st and 3rd Saturday</option>
+        </select>
+      </label>
+      <fieldset id="add-days" hidden>
+        <legend>Days</legend>
+        <label><input type="checkbox" value="1"> Mon</label>
+        <label><input type="checkbox" value="2"> Tue</label>
+        <label><input type="checkbox" value="3"> Wed</label>
+        <label><input type="checkbox" value="4"> Thu</label>
+        <label><input type="checkbox" value="5"> Fri</label>
+        <label><input type="checkbox" value="6"> Sat</label>
+        <label><input type="checkbox" value="0"> Sun</label>
+      </fieldset>
+      <button type="submit">Add chore</button>
+    </form>
+
+    <footer class="fine">
+      Checks stay on this phone. They are not shared to another phone.
+    </footer>
+  </main>
+  <script src="app.js?v=5"></script>
+</body>
+</html>
