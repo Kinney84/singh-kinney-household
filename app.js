@@ -65,7 +65,9 @@ function blankState() {
     who: "aaron",
     colors: { ...DEFAULT_COLORS },
     assign: {},
+    assignAt: {},
     points: {},
+    pointsAt: {},
     custom: [],
     checks: {},
     migrated: false
@@ -80,7 +82,9 @@ function loadState() {
   } catch { /* keep blank */ }
   state.colors = { ...DEFAULT_COLORS, ...(state.colors || {}) };
   state.assign = state.assign || {};
+  state.assignAt = state.assignAt || {};
   state.points = state.points || {};
+  state.pointsAt = state.pointsAt || {};
   state.custom = Array.isArray(state.custom) ? state.custom : [];
   state.checks = state.checks || {};
   if (!PEOPLE[state.who]) state.who = "aaron";
@@ -103,8 +107,9 @@ function loadState() {
   return state;
 }
 
-function saveState(state) {
+function saveState(state, opts) {
   localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  if (!opts || !opts.silent) schedulePush();
 }
 
 let state = loadState();
@@ -396,6 +401,7 @@ function choreRow(chore, dayIso, checks) {
   assign.addEventListener("change", () => {
     if (assign.value) state.assign[chore.id] = assign.value;
     else delete state.assign[chore.id];
+    state.assignAt[chore.id] = Date.now();
     saveState(state);
     render();
   });
@@ -412,6 +418,7 @@ function choreRow(chore, dayIso, checks) {
   pts.addEventListener("change", () => {
     const n = Math.round(Number(pts.value));
     state.points[chore.id] = Number.isFinite(n) && n >= 1 ? n : 1;
+    state.pointsAt[chore.id] = Date.now();
     pts.value = String(state.points[chore.id]);
     saveState(state);
     render();
@@ -427,8 +434,8 @@ function choreRow(chore, dayIso, checks) {
 function toggleCheck(dayIso, id) {
   const dayChecks = { ...(state.checks[dayIso] || {}) };
   const current = dayChecks[id];
-  if (current && current.by === state.who) delete dayChecks[id];
-  else dayChecks[id] = { by: state.who };
+  if (current && current.by === state.who && !current.off) dayChecks[id] = { off: true, t: Date.now() };
+  else dayChecks[id] = { by: state.who, t: Date.now() };
   state.checks[dayIso] = dayChecks;
   saveState(state);
   render();
@@ -527,6 +534,99 @@ function render() {
   else renderCalendar();
 }
 
+
+const SYNC_URL = "https://script.google.com/macros/s/AKfycbzYHH3wZwtdT2KT2ARLyJ6pYulQDd3F_67-lU-y1_gdrDXQ-y6iCzR_UJUIPd0-cmeE/exec";
+const SYNC_CODE_KEY = "skh-sync-code";
+let pushTimer = null;
+let syncGen = 0;
+
+function syncCode() {
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get("k");
+  if (fromUrl) {
+    localStorage.setItem(SYNC_CODE_KEY, fromUrl);
+    params.delete("k");
+    const next = location.pathname + (params.toString() ? "?" + params.toString() : "") + location.hash;
+    history.replaceState(null, "", next);
+  }
+  return localStorage.getItem(SYNC_CODE_KEY) || "";
+}
+
+function schedulePush() {
+  syncGen += 1;
+  if (!SYNC_URL || !syncCode()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { pushSync(); }, 500);
+}
+
+function syncSlice() {
+  const checks = {};
+  for (const [day, marks] of Object.entries(state.checks || {})) {
+    checks[day] = {};
+    for (const [id, mark] of Object.entries(marks || {})) {
+      if (!mark || typeof mark !== "object") continue;
+      const t = mark.t || 1;
+      checks[day][id] = mark.off ? { off: true, t } : { by: mark.by, t };
+    }
+  }
+  return {
+    checks,
+    custom: (state.custom || []).map((c) => ({ ...c, t: c.t || 1 })),
+    assign: state.assign || {},
+    assignAt: state.assignAt || {},
+    points: state.points || {},
+    pointsAt: state.pointsAt || {}
+  };
+}
+
+function applyRemote(remote) {
+  if (!remote || remote.error) return;
+  state.checks = remote.checks || {};
+  state.custom = Array.isArray(remote.custom) ? remote.custom : [];
+  state.assign = remote.assign || {};
+  state.assignAt = remote.assignAt || {};
+  state.points = remote.points || {};
+  state.pointsAt = remote.pointsAt || {};
+  saveState(state, { silent: true });
+  render();
+}
+
+function jsonp(params) {
+  return new Promise((resolve, reject) => {
+    const cb = "skh_cb_" + Date.now() + Math.floor(Math.random() * 1000);
+    const query = new URLSearchParams({ ...params, callback: cb, code: syncCode() });
+    const script = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("sync timeout")); }, 12000);
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    function cleanup() {
+      clearTimeout(timer);
+      try { delete window[cb]; } catch { /* ignore */ }
+      script.remove();
+    }
+    script.onerror = () => { cleanup(); reject(new Error("sync failed")); };
+    script.src = SYNC_URL + "?" + query.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function pushSync() {
+  if (!SYNC_URL || !syncCode()) return Promise.resolve();
+  const gen = syncGen;
+  return jsonp({ op: "push", payload: JSON.stringify(syncSlice()) }).then((remote) => {
+    if (gen !== syncGen) return pushSync();
+    applyRemote(remote);
+  }).catch(() => {});
+}
+
+function pullSync() {
+  if (!SYNC_URL || !syncCode()) return Promise.resolve();
+  const gen = syncGen;
+  return jsonp({ op: "pull" }).then((remote) => {
+    if (gen !== syncGen) return;
+    applyRemote(remote);
+  }).catch(() => {});
+}
+
 function boot() {
   $("#prev").addEventListener("click", () => { offset -= 1; render(); });
   $("#next").addEventListener("click", () => { offset += 1; render(); });
@@ -577,8 +677,10 @@ function boot() {
     if (rule === "once") chore.date = iso(viewedDate());
     if (rule === "sat1") chore.nths = [1];
     if (rule === "sat13") chore.nths = [1, 3];
+    chore.t = Date.now();
     state.custom.push(chore);
     state.points[chore.id] = points;
+    state.pointsAt[chore.id] = chore.t;
     saveState(state);
     $("#add").reset();
     $("#add-points").value = "1";
@@ -590,6 +692,12 @@ function boot() {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
   render();
+  syncCode();
+  pullSync();
+  setInterval(pullSync, 15000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") pullSync();
+  });
 }
 
 boot();

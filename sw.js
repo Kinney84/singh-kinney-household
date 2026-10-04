@@ -1,4 +1,4 @@
-const CACHE = "skh-v6";
+const CACHE = "skh-v7";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
