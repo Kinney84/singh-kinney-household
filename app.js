@@ -599,15 +599,64 @@ function syncSlice() {
 }
 
 function applyRemote(remote) {
-  if (!remote || remote.error) return;
-  state.checks = remote.checks || {};
-  state.custom = Array.isArray(remote.custom) ? remote.custom : [];
-  state.assign = remote.assign || {};
-  state.assignAt = remote.assignAt || {};
-  state.points = remote.points || {};
-  state.pointsAt = remote.pointsAt || {};
+  if (!remote || remote.error) return false;
+  let localNewer = false;
+  const days = new Set([...Object.keys(state.checks || {}), ...Object.keys(remote.checks || {})]);
+  const checks = {};
+  for (const day of days) {
+    const mine = (state.checks || {})[day] || {};
+    const theirs = (remote.checks || {})[day] || {};
+    const ids = new Set([...Object.keys(mine), ...Object.keys(theirs)]);
+    const merged = {};
+    for (const id of ids) {
+      const a = mine[id];
+      const b = theirs[id];
+      let pick = b;
+      if (a && (!b || (a.t || 0) > (b.t || 0))) {
+        pick = a;
+        if (!b || JSON.stringify(a) !== JSON.stringify(b)) localNewer = true;
+      }
+      if (pick) merged[id] = pick;
+    }
+    if (Object.keys(merged).length) checks[day] = merged;
+  }
+  state.checks = checks;
+
+  const byId = {};
+  for (const c of Array.isArray(remote.custom) ? remote.custom : []) if (c && c.id) byId[c.id] = c;
+  for (const c of state.custom || []) {
+    if (!c || !c.id) continue;
+    if (!byId[c.id] || (c.t || 0) > (byId[c.id].t || 0)) { byId[c.id] = c; localNewer = true; }
+  }
+  state.custom = Object.values(byId);
+
+  for (const [valKey, atKey] of [["assign", "assignAt"], ["points", "pointsAt"]]) {
+    const val = { ...(remote[valKey] || {}) };
+    const at = { ...(remote[atKey] || {}) };
+    for (const [id, when] of Object.entries(state[atKey] || {})) {
+      if ((when || 0) > (at[id] || 0)) {
+        at[id] = when;
+        if (state[valKey] && state[valKey][id] !== undefined) val[id] = state[valKey][id];
+        else delete val[id];
+        localNewer = true;
+      }
+    }
+    state[valKey] = val;
+    state[atKey] = at;
+  }
   saveState(state, { silent: true });
   render();
+  return localNewer;
+}
+
+function todayCheckCount() {
+  const marks = (state.checks || {})[iso(localDate(0))] || {};
+  return Object.values(marks).filter((m) => m && PEOPLE[m.by]).length;
+}
+
+function syncedText() {
+  const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return "Synced " + time + ", " + todayCheckCount() + " checked today";
 }
 
 function jsonp(params) {
@@ -638,8 +687,8 @@ function pushSync() {
       return;
     }
     if (gen !== syncGen) return pushSync();
-    applyRemote(remote);
-    setSyncStatus("Synced");
+    if (applyRemote(remote)) return pushSync();
+    setSyncStatus(syncedText());
   }).catch(() => setSyncStatus("Not synced"));
 }
 
@@ -652,8 +701,8 @@ function pullSync() {
       return;
     }
     if (gen !== syncGen) return;
-    applyRemote(remote);
-    setSyncStatus("Synced");
+    if (applyRemote(remote)) { schedulePush(); return; }
+    setSyncStatus(syncedText());
   }).catch(() => setSyncStatus("Not synced"));
 }
 
