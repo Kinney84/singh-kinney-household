@@ -37,6 +37,7 @@ header h1 {
   font-family: "Avenir Next", "Segoe UI", sans-serif;
   font-size: 0.95rem;
 }
+#sync-status { font-size: 0.8rem; margin-top: 2px; }
 
 .modes { display: flex; gap: 8px; margin-top: 14px; }
 .modes button, .back-daily, .add button, .daynav button {

@@ -536,6 +536,7 @@ function render() {
 
 
 const SYNC_URL = "https://script.google.com/macros/s/AKfycbzYHH3wZwtdT2KT2ARLyJ6pYulQDd3F_67-lU-y1_gdrDXQ-y6iCzR_UJUIPd0-cmeE/exec";
+const SYNC_CODE = "c576e9b04cc800d9";
 const SYNC_CODE_KEY = "skh-sync-code";
 let pushTimer = null;
 let syncGen = 0;
@@ -549,7 +550,25 @@ function syncCode() {
     const next = location.pathname + (params.toString() ? "?" + params.toString() : "") + location.hash;
     history.replaceState(null, "", next);
   }
-  return localStorage.getItem(SYNC_CODE_KEY) || "";
+  return localStorage.getItem(SYNC_CODE_KEY) || SYNC_CODE;
+}
+
+function setSyncStatus(text) {
+  const el = $("#sync-status");
+  if (el) el.textContent = text;
+}
+
+function stampLocal() {
+  let changed = false;
+  for (const marks of Object.values(state.checks || {})) {
+    for (const mark of Object.values(marks || {})) {
+      if (mark && typeof mark === "object" && !mark.t) {
+        mark.t = Date.now();
+        changed = true;
+      }
+    }
+  }
+  if (changed) saveState(state, { silent: true });
 }
 
 function schedulePush() {
@@ -612,19 +631,30 @@ function jsonp(params) {
 function pushSync() {
   if (!SYNC_URL || !syncCode()) return Promise.resolve();
   const gen = syncGen;
+  setSyncStatus("Syncing…");
   return jsonp({ op: "push", payload: JSON.stringify(syncSlice()) }).then((remote) => {
+    if (!remote || remote.error) {
+      setSyncStatus("Not synced");
+      return;
+    }
     if (gen !== syncGen) return pushSync();
     applyRemote(remote);
-  }).catch(() => {});
+    setSyncStatus("Synced");
+  }).catch(() => setSyncStatus("Not synced"));
 }
 
 function pullSync() {
   if (!SYNC_URL || !syncCode()) return Promise.resolve();
   const gen = syncGen;
   return jsonp({ op: "pull" }).then((remote) => {
+    if (!remote || remote.error) {
+      setSyncStatus("Not synced");
+      return;
+    }
     if (gen !== syncGen) return;
     applyRemote(remote);
-  }).catch(() => {});
+    setSyncStatus("Synced");
+  }).catch(() => setSyncStatus("Not synced"));
 }
 
 function boot() {
@@ -693,7 +723,8 @@ function boot() {
   }
   render();
   syncCode();
-  pullSync();
+  stampLocal();
+  pushSync();
   setInterval(pullSync, 15000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") pullSync();
